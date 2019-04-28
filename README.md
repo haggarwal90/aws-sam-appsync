@@ -9,3 +9,24 @@
 2. Execute `make deploy-schema` (Only first time or any new update in schema)
 3. Execute `make package`
 4. Excute `make deploy`
+
+## How To Test
+1. Goto AWS AppSync service from console.
+2. Execute below query
+`
+    query {
+        allPosts {
+            id
+            author
+            title
+            content
+            url
+            ups
+            downs
+            relatedPosts {
+                id
+                title
+            }
+        }
+    }
+`
