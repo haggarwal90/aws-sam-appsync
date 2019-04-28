@@ -6,7 +6,7 @@ Resources:
     Properties:
       Handler: src/index.handler
       Runtime: nodejs8.10
-      CodeUri: s3://development-stage/25a306935447478cf17b7395fc79202d
+      CodeUri: s3://development-stage/687ce5884f79dc27e3670e20b94e29b5
   Role:
     Type: AWS::IAM::Role
     Properties:
@@ -88,7 +88,8 @@ Resources:
         Fn::GetAtt:
         - AppSyncDataSource
         - Name
-      RequestMappingTemplate: '{ "version" : "2017-02-28", "operation": "Invoke" }'
+      RequestMappingTemplate: '{ "version" : "2017-02-28", "operation": "Invoke",  "payload":
+        { "field": "allPosts", "context": $utils.toJson($context) } }'
       ResponseMappingTemplate: $util.toJson($context.result)
   AppSyncAPIKey:
     Type: AWS::AppSync::ApiKey
