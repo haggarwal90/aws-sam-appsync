@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/index.handler
+      Runtime: nodejs8.10
+      
+  Role: 
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement: 
+          - Effect: Allow
+            Principal:
+              Service: appsync.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: 
+        - PolicyName: allow-access-to-lambda-from-appsync
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement: 
+              - Effect: Allow
+                Action: lambda:invokeFunction
+                Resource:
+                  - !GetAtt [ LambdaFunction, Arn ]
+                  - !Join [ '', [ !GetAtt [ LambdaFunction, Arn ], ':*' ] ]
+
+  AppSyncAPI:
+    Type: AWS::AppSync::GraphQLApi
+    Properties:
+      Name: !Join [ -, [ !Ref ParamProjectName, !Ref ParamENV ] ]
+      AuthenticationType: API_KEY
+
+  AppSyncSchema:
+    Type: AWS::AppSync::GraphQLSchema
+    Properties:
+      ApiId: !GetAtt [ AppSyncAPI, ApiId ]
+      DefinitionS3Location: !Join [ /, [ 's3:/', !Ref ParamBucket, 'schema.graphql' ] ]
+
+  AppSyncDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId: !GetAtt [ AppSyncAPI, ApiId ]
+      Name: 'LmbdaDataSource'
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn: !GetAtt [ LambdaFunction, Arn ]
+      ServiceRoleArn: !GetAtt [ Role, Arn ]
+
+  AppSyncResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId: !GetAtt [ AppSyncAPI, ApiId ]
+      TypeName: 'Query'
+      FieldName: 'allPosts'
+      DataSourceName: !GetAtt [ AppSyncDataSource, Name ]
+      RequestMappingTemplate: '{ "version" : "2017-02-28", "operation": "Invoke" }'
+      ResponseMappingTemplate: '$util.toJson($context.result)'
+      
+  AppSyncAPIKey:
+      Type: AWS::AppSync::ApiKey
+      Properties:
+        ApiId: !GetAtt [ AppSyncAPI, ApiId ]
+
+Parameters:
+  ParamProjectName:
+    Type: String
+  ParamENV:
+    Type: String
+  ParamBucket:
+    Type: String
+
+Outputs:
+
+  APIKey:
+    Description: API Key
+    Value: !GetAtt [ AppSyncAPIKey, ApiKey ]
+
+  GraphQL:
+    Description: GraphQL URL
+    Value: !GetAtt [ AppSyncAPI, GraphQLUrl ]

@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/index.handler
+      Runtime: nodejs8.10
+      CodeUri: s3://development-stage/25a306935447478cf17b7395fc79202d
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: appsync.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: allow-access-to-lambda-from-appsync
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: lambda:invokeFunction
+            Resource:
+            - Fn::GetAtt:
+              - LambdaFunction
+              - Arn
+            - Fn::Join:
+              - ''
+              - - Fn::GetAtt:
+                  - LambdaFunction
+                  - Arn
+                - :*
+  AppSyncAPI:
+    Type: AWS::AppSync::GraphQLApi
+    Properties:
+      Name:
+        Fn::Join:
+        - '-'
+        - - Ref: ParamProjectName
+          - Ref: ParamENV
+      AuthenticationType: API_KEY
+  AppSyncSchema:
+    Type: AWS::AppSync::GraphQLSchema
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - AppSyncAPI
+        - ApiId
+      DefinitionS3Location:
+        Fn::Join:
+        - /
+        - - s3:/
+          - Ref: ParamBucket
+          - schema.graphql
+  AppSyncDataSource:
+    Type: AWS::AppSync::DataSource
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - AppSyncAPI
+        - ApiId
+      Name: LmbdaDataSource
+      Type: AWS_LAMBDA
+      LambdaConfig:
+        LambdaFunctionArn:
+          Fn::GetAtt:
+          - LambdaFunction
+          - Arn
+      ServiceRoleArn:
+        Fn::GetAtt:
+        - Role
+        - Arn
+  AppSyncResolver:
+    Type: AWS::AppSync::Resolver
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - AppSyncAPI
+        - ApiId
+      TypeName: Query
+      FieldName: allPosts
+      DataSourceName:
+        Fn::GetAtt:
+        - AppSyncDataSource
+        - Name
+      RequestMappingTemplate: '{ "version" : "2017-02-28", "operation": "Invoke" }'
+      ResponseMappingTemplate: $util.toJson($context.result)
+  AppSyncAPIKey:
+    Type: AWS::AppSync::ApiKey
+    Properties:
+      ApiId:
+        Fn::GetAtt:
+        - AppSyncAPI
+        - ApiId
+Parameters:
+  ParamProjectName:
+    Type: String
+  ParamENV:
+    Type: String
+  ParamBucket:
+    Type: String
+Outputs:
+  APIKey:
+    Description: API Key
+    Value:
+      Fn::GetAtt:
+      - AppSyncAPIKey
+      - ApiKey
+  GraphQL:
+    Description: GraphQL URL
+    Value:
+      Fn::GetAtt:
+      - AppSyncAPI
+      - GraphQLUrl
