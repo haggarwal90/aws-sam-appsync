@@ -13,7 +13,7 @@
 ## How To Test
 1. Goto AWS AppSync service from console.
 2. Execute below query
-`
+```
     query {
         allPosts {
             id
@@ -29,4 +29,4 @@
             }
         }
     }
-`
+```
